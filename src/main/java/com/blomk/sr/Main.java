@@ -266,7 +266,7 @@ public class Main {
 		return url;
 	}
 
-	private static String generateFilename(String filename) {
+	public static String generateFilename(String filename) {
 		
 		String uniqueID = UUID.randomUUID().toString();
 		String ext = FilenameUtils.getExtension(filename);
