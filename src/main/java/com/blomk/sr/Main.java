@@ -87,8 +87,6 @@ public class Main {
 			if (cntType.startsWith("image/")) {
 				
 				InputStream stream = filePart.getInputStream();
-				//String newFilename = generateFilename(uploadedFileName);
-				//Files.copy(stream, Paths.get(IMAGES).resolve(newFilename), StandardCopyOption.REPLACE_EXISTING);
 				String newFilename = renameAndMoveImageFile(req, stream, uploadedFileName);
 				String url = generateURL(req, newFilename);
 				db.add(url);
@@ -140,17 +138,7 @@ public class Main {
 		
 		db.clear();
 		req.attribute("org.eclipse.jetty.multipartConfig", new MultipartConfigElement(""));
-		/*
-		 * TODO:
-		 * Get file from a client.
-		 * Check file type.
-		 * Rename and Move image to the image folder.
-		 * Check file width and height.
-		 * If size is valid
-		 *  - generateThumbnail(32)
-		 *  - generateThumbnail(64)
-		 * Else return the original image.
-		 */
+
 		try {
 			
 			Part filePart = req.raw().getPart("file");
@@ -287,7 +275,8 @@ public class Main {
 		return filename;
 	}
 
-	public static File newFile(File tmpImgFolder, String nFilename) throws IOException {
+	//Check if there is a Zip Slip.
+	private static File newFile(File tmpImgFolder, String nFilename) throws IOException {
 
 		File destFile = new File(tmpImgFolder, nFilename);
 
