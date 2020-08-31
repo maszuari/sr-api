@@ -7,53 +7,48 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
+
 import java.util.Set;
-import java.util.TreeMap;
+
 import java.util.UUID;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
+
 import java.util.zip.ZipInputStream;
 
-import javax.imageio.ImageIO;
 import javax.servlet.MultipartConfigElement;
 import javax.servlet.ServletException;
 import javax.servlet.http.Part;
 
+import org.apache.commons.imaging.ImageInfo;
+import org.apache.commons.imaging.ImageReadException;
+import org.apache.commons.imaging.Imaging;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.IOUtils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.gson.Gson;
 
-import net.sf.jmimemagic.Magic;
-import net.sf.jmimemagic.MagicException;
-import net.sf.jmimemagic.MagicMatchNotFoundException;
-import net.sf.jmimemagic.MagicParseException;
+import net.coobird.thumbnailator.Thumbnails;
 import spark.Request;
 import spark.Response;
 
 public class Main {
 
-	// Create config.properties and set the directory on the storage property.
-	// For example; storage=/tmp/public
+	// Set images and tmp folders in config.properties.
+	// images folder for storing images. tmp folder for processing the images.
 	private static String IMAGES;
 	private static String TMP;
 	private static Logger lgr = LoggerFactory.getLogger(Main.class);
 	private static Set<String> db;
 	private static File imagesDir, tmpDir;
+	private static final int MAX_WIDTH = 128, MAX_HEIGHT = 128; 
 
 	public static void main(String[] args) {
 
@@ -75,24 +70,28 @@ public class Main {
 		db = new HashSet<String>();
 		post("/attach", (req, res) -> getImageLink(req, res));
 		post("/zip", (req, res) -> getZipFile(req, res));
+		post("/thumbnails", (req, res) -> getThumbnails(req, res));
 	}
 
 	private static String getImageLink(Request req, Response res) {
+		
+		db.clear();
 		req.attribute("org.eclipse.jetty.multipartConfig", new MultipartConfigElement(""));
 
 		try {
 
 			Part filePart = req.raw().getPart("file");
-
 			String uploadedFileName = filePart.getSubmittedFileName();
 			String cntType = filePart.getContentType();
+			
 			if (cntType.startsWith("image/")) {
+				
 				InputStream stream = filePart.getInputStream();
-				String newFilename = generateFilename(uploadedFileName);
-				//String url = req.scheme() + "://" + req.host() + "/" + newFilename;
+				//String newFilename = generateFilename(uploadedFileName);
+				//Files.copy(stream, Paths.get(IMAGES).resolve(newFilename), StandardCopyOption.REPLACE_EXISTING);
+				String newFilename = renameAndMoveImageFile(req, stream, uploadedFileName);
 				String url = generateURL(req, newFilename);
 				db.add(url);
-				Files.copy(stream, Paths.get(IMAGES).resolve(newFilename), StandardCopyOption.REPLACE_EXISTING);
 				return new Gson()
 						.toJson(new StandardResponse(StatusResponse.SUCCESS, "Successfully uploaded file.", db));
 
@@ -108,21 +107,13 @@ public class Main {
 
 	private static String getZipFile(Request req, Response res) {
 
-		/*
-		 * TODO: 
-		 * 1. Get the zip file from client.
-		 * 2. Create a unique folder in temp file to store the image files.
-		 * 3. Extract zip file and save img files to the folder.
-		 * 4. Get all img files from the folder.
-		 * 5. Rename img file and save it to main folder.
-		 * 6. Delete zip file and the tmp folder.
-		 */
+		db.clear();
 		req.attribute("org.eclipse.jetty.multipartConfig", new MultipartConfigElement(""));
 
 		try {
+			
 			Part filePart = req.raw().getPart("file");
 			String uploadedFileName = filePart.getSubmittedFileName();
-
 			String cntType = filePart.getContentType();
 
 			if (cntType.equals("application/zip")) {
@@ -145,10 +136,89 @@ public class Main {
 		}
 	}
 	
+	private static String getThumbnails(Request req, Response res) {
+		
+		db.clear();
+		req.attribute("org.eclipse.jetty.multipartConfig", new MultipartConfigElement(""));
+		/*
+		 * TODO:
+		 * Get file from a client.
+		 * Check file type.
+		 * Rename and Move image to the image folder.
+		 * Check file width and height.
+		 * If size is valid
+		 *  - generateThumbnail(32)
+		 *  - generateThumbnail(64)
+		 * Else return the original image.
+		 */
+		try {
+			
+			Part filePart = req.raw().getPart("file");
+			String uploadedFileName = filePart.getSubmittedFileName();
+			String cntType = filePart.getContentType();		
+			
+			if (cntType.startsWith("image/")) {
+				
+				InputStream stream = filePart.getInputStream();
+				String newFilename = renameAndMoveImageFile(req, stream, uploadedFileName);
+				ImageFile imgFile = checkImageFileDimension(newFilename);
+				if( imgFile.isValidImage() ) {
+					
+					String file32 = createThumbnail(imgFile.getWidth(), imgFile.getHeight(), 32, newFilename);
+					String url32 = generateURL(req, file32);
+					
+					String file64 = createThumbnail(imgFile.getWidth(), imgFile.getHeight(), 64, newFilename);
+					String url64 = generateURL(req, file64);
+					
+					db.add(url32);
+					db.add(url64);
+					
+					return new Gson().toJson(new StandardResponse(StatusResponse.SUCCESS, "Success.", db));
+				}else {
+					String url = generateURL(req, newFilename);
+					db.add(url);
+					return new Gson().toJson(new StandardResponse(StatusResponse.SUCCESS, "Image file width and height are less than 128px.", db));
+				}
+			}else {
+				return new Gson().toJson(new StandardResponse(StatusResponse.ERROR, "Not an image file"));
+			}
+			
+		} catch (IOException | ServletException e) {	
+			return new Gson().toJson(new StandardResponse(StatusResponse.ERROR, "Not a zip file"));
+		}
+	}
+	
+	private static String renameAndMoveImageFile(Request req, InputStream stream, String uploadedFilename) throws IOException {
+		
+		String newFilename = generateFilename(uploadedFilename);
+		Files.copy(stream, Paths.get(IMAGES).resolve(newFilename), StandardCopyOption.REPLACE_EXISTING);
+		return newFilename;
+	}
+	
+	private static ImageFile checkImageFileDimension(String filename) {
+		
+		try {
+			
+			String fullPath = IMAGES + File.separator + filename;
+			ImageInfo imgInfo = Imaging.getImageInfo(new File(fullPath));
+			
+			if( imgInfo.getHeight() >= MAX_HEIGHT || imgInfo.getWidth() >= MAX_WIDTH ){	
+				return new ImageFile(imgInfo.getWidth(), imgInfo.getHeight(), true);
+			}else {
+				return new ImageFile(imgInfo.getWidth(), imgInfo.getHeight(), false);
+			}
+			
+		} catch (ImageReadException | IOException e) {
+			lgr.error(e.getMessage());
+			return new ImageFile( 0, 0, false);
+		}
+	}
+	
 	private static void renameAndMoveFiles(Request req, File folder) throws IOException {
+		
 		for (final File fileEntry : folder.listFiles()) {
+			
 			if (fileEntry.isFile()) {
-		          String fName = fileEntry.getName();
 		          String newFilename = generateFilename(fileEntry.getName());
 		          Path srvFile = Paths.get(fileEntry.getAbsoluteFile().toURI());
 		          Files.copy(srvFile, Paths.get(IMAGES).resolve(newFilename), StandardCopyOption.REPLACE_EXISTING);
@@ -174,10 +244,7 @@ public class Main {
 			ZipEntry entry = zis.getNextEntry();			
 			
 			while (entry!=null) {
-				
-				//String newFilename = generateFilename(entry.getName());
-				lgr.debug("Image file "+ entry.getName());
-				
+								
 				File nFile = newFile(tmpImgFolderFile, entry.getName());
 				FileOutputStream fos = new FileOutputStream(nFile);
 				int len;
@@ -191,7 +258,7 @@ public class Main {
 			zis.closeEntry();
 	        zis.close();
 	        return tmpImgFolderFile;
-	        //Delete tmpImgFolder
+	        
 		} catch (IOException ex) {
 			lgr.error(ex.getMessage());
 			return null;
@@ -212,8 +279,10 @@ public class Main {
 	}
 
 	private static String generateFilename(String filename) {
+		
 		String uniqueID = UUID.randomUUID().toString();
 		String ext = FilenameUtils.getExtension(filename);
+		
 		filename = uniqueID + "." + ext;
 		return filename;
 	}
@@ -228,41 +297,31 @@ public class Main {
 		if (!destFilePath.startsWith(destDirPath + File.separator)) {
 			throw new IOException("Entry is outside of the target dir: " + nFilename);
 		}
-
 		return destFile;
 	}
-
-	// Check if the file is an image.
-	private static boolean isImageFile(byte[] in) {
-
+	
+	private static String createThumbnail(int srcWidth, int srcHeight, int targetWidth, String srcFilename) {
+		
+		double scale = (double) srcWidth / targetWidth;
+		int targetHeight = (int) (srcHeight / scale);
+		
+		String fullPath = IMAGES + File.separator + srcFilename;
+		String scaledFilename = targetWidth+"px_"+srcFilename;
+		String scaledFilePath = IMAGES + File.separator + scaledFilename;
+		
 		try {
-			String mimeType = Magic.getMagicMatch(in, false).getMimeType();
-			lgr.debug("MIME TYPE " + mimeType);
-			if (mimeType.startsWith("image/")) {
-				return true;
-			} else {
-				return false;
-			}
-		} catch (MagicParseException | MagicMatchNotFoundException | MagicException e) {
-			// TODO Auto-generated catch block
-			lgr.error(e.toString());
-			return false;
+			
+			Thumbnails.of(new File(fullPath))
+			.size(targetWidth, targetHeight)
+			.toFile(new File(scaledFilePath));
+			
+			return scaledFilename;
+			
+		} catch (IOException e) {
+			lgr.error(e.getMessage());
+			return null;
 		}
-
+		
 	}
 	
-	private static void renameFileInZipFile(URI zipFile, Map<String, String> zipProperties, String entryName, String nZipFilename) throws IOException {
-		
-        
-        //FileSystem fs = FileSystems.newFileSystem(zipfile, zip_properties, null);
-        try (FileSystem zipfs = FileSystems.newFileSystem(zipFile, zipProperties, null)) {
-            /* Access file that needs to be renamed */
-            Path pathInZipfile = zipfs.getPath(entryName);
-            /* Specify new file name */
-            Path renamedZipEntry = zipfs.getPath(nZipFilename);
-            /* Execute rename */
-            Files.move(pathInZipfile,renamedZipEntry,StandardCopyOption.ATOMIC_MOVE);  
-        } 
-	}
-
 }

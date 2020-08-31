@@ -1,5 +1,6 @@
 package com.blomk.sr;
 
+//TODO DB to store urls.
 public class DBService {
 
 	public void createTable() {
