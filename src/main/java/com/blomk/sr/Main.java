@@ -119,7 +119,7 @@ public class Main {
 
 				String zipFilename = generateFilename(uploadedFileName);
 				Files.copy(stream, Paths.get(TMP).resolve(zipFilename), StandardCopyOption.REPLACE_EXISTING);
-				File tmpImgFolder = readContentInZipFile(req, zipFilename);
+				File tmpImgFolder = readContentInZipFile(zipFilename);
 				renameAndMoveFiles(req, tmpImgFolder);
 				deleteFileAndFolder(zipFilename, tmpImgFolder);
 				return new Gson().toJson(new StandardResponse(StatusResponse.SUCCESS, "Successfully uploaded file", db));
@@ -216,7 +216,7 @@ public class Main {
 		}
 	}
 
-	private static File readContentInZipFile(Request req, String filename) {
+	public static File readContentInZipFile(String filename) {
 
 		try {
 			
@@ -254,7 +254,7 @@ public class Main {
 
 	}
 	
-	private static void deleteFileAndFolder(String zipFilename, File tmpImgFolder) throws IOException {
+	public static void deleteFileAndFolder(String zipFilename, File tmpImgFolder) throws IOException {
 		
 		String zipFile = TMP + File.separator + zipFilename;
 		FileUtils.forceDelete(new File(zipFile));
