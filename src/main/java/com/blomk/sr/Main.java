@@ -87,7 +87,7 @@ public class Main {
 			if (cntType.startsWith("image/")) {
 				
 				InputStream stream = filePart.getInputStream();
-				String newFilename = renameAndMoveImageFile(req, stream, uploadedFileName);
+				String newFilename = renameAndMoveImageFile(stream, uploadedFileName);
 				String url = generateURL(req, newFilename);
 				db.add(url);
 				return new Gson()
@@ -148,7 +148,7 @@ public class Main {
 			if (cntType.startsWith("image/")) {
 				
 				InputStream stream = filePart.getInputStream();
-				String newFilename = renameAndMoveImageFile(req, stream, uploadedFileName);
+				String newFilename = renameAndMoveImageFile(stream, uploadedFileName);
 				ImageFile imgFile = checkImageFileDimension(newFilename);
 				if( imgFile.isValidImage() ) {
 					
@@ -176,7 +176,7 @@ public class Main {
 		}
 	}
 	
-	private static String renameAndMoveImageFile(Request req, InputStream stream, String uploadedFilename) throws IOException {
+	private static String renameAndMoveImageFile(InputStream stream, String uploadedFilename) throws IOException {
 		
 		String newFilename = generateFilename(uploadedFilename);
 		Files.copy(stream, Paths.get(IMAGES).resolve(newFilename), StandardCopyOption.REPLACE_EXISTING);
