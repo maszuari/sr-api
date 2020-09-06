@@ -150,7 +150,7 @@ public class Main {
 				InputStream stream = filePart.getInputStream();
 				String newFilename = renameAndMoveImageFile(stream, uploadedFileName);
 				ImageFile imgFile = checkImageFileDimension(newFilename);
-				if( imgFile.isValidImage() ) {
+				if( imgFile != null && imgFile.isValidImage() ) {
 					
 					String file32 = createThumbnail(imgFile.getWidth(), imgFile.getHeight(), 32, newFilename);
 					String url32 = generateURL(req, file32);
@@ -183,7 +183,7 @@ public class Main {
 		return newFilename;
 	}
 	
-	private static ImageFile checkImageFileDimension(String filename) {
+	public static ImageFile checkImageFileDimension(String filename) {
 		
 		try {
 			
@@ -198,7 +198,7 @@ public class Main {
 			
 		} catch (ImageReadException | IOException e) {
 			lgr.error(e.getMessage());
-			return new ImageFile( 0, 0, false);
+			return null;
 		}
 	}
 	
