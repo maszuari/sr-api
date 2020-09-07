@@ -87,7 +87,7 @@ public class Main {
 			if (cntType.startsWith("image/")) {
 				
 				InputStream stream = filePart.getInputStream();
-				String newFilename = renameAndMoveImageFile(req, stream, uploadedFileName);
+				String newFilename = renameAndMoveImageFile(stream, uploadedFileName);
 				String url = generateURL(req, newFilename);
 				db.add(url);
 				return new Gson()
@@ -119,7 +119,7 @@ public class Main {
 
 				String zipFilename = generateFilename(uploadedFileName);
 				Files.copy(stream, Paths.get(TMP).resolve(zipFilename), StandardCopyOption.REPLACE_EXISTING);
-				File tmpImgFolder = readContentInZipFile(req, zipFilename);
+				File tmpImgFolder = readContentInZipFile(zipFilename);
 				renameAndMoveFiles(req, tmpImgFolder);
 				deleteFileAndFolder(zipFilename, tmpImgFolder);
 				return new Gson().toJson(new StandardResponse(StatusResponse.SUCCESS, "Successfully uploaded file", db));
@@ -148,9 +148,9 @@ public class Main {
 			if (cntType.startsWith("image/")) {
 				
 				InputStream stream = filePart.getInputStream();
-				String newFilename = renameAndMoveImageFile(req, stream, uploadedFileName);
+				String newFilename = renameAndMoveImageFile(stream, uploadedFileName);
 				ImageFile imgFile = checkImageFileDimension(newFilename);
-				if( imgFile.isValidImage() ) {
+				if( imgFile != null && imgFile.isValidImage() ) {
 					
 					String file32 = createThumbnail(imgFile.getWidth(), imgFile.getHeight(), 32, newFilename);
 					String url32 = generateURL(req, file32);
@@ -176,14 +176,14 @@ public class Main {
 		}
 	}
 	
-	private static String renameAndMoveImageFile(Request req, InputStream stream, String uploadedFilename) throws IOException {
+	private static String renameAndMoveImageFile(InputStream stream, String uploadedFilename) throws IOException {
 		
 		String newFilename = generateFilename(uploadedFilename);
 		Files.copy(stream, Paths.get(IMAGES).resolve(newFilename), StandardCopyOption.REPLACE_EXISTING);
 		return newFilename;
 	}
 	
-	private static ImageFile checkImageFileDimension(String filename) {
+	public static ImageFile checkImageFileDimension(String filename) {
 		
 		try {
 			
@@ -198,7 +198,7 @@ public class Main {
 			
 		} catch (ImageReadException | IOException e) {
 			lgr.error(e.getMessage());
-			return new ImageFile( 0, 0, false);
+			return null;
 		}
 	}
 	
@@ -216,7 +216,7 @@ public class Main {
 		}
 	}
 
-	private static File readContentInZipFile(Request req, String filename) {
+	public static File readContentInZipFile(String filename) {
 
 		try {
 			
@@ -254,7 +254,7 @@ public class Main {
 
 	}
 	
-	private static void deleteFileAndFolder(String zipFilename, File tmpImgFolder) throws IOException {
+	public static void deleteFileAndFolder(String zipFilename, File tmpImgFolder) throws IOException {
 		
 		String zipFile = TMP + File.separator + zipFilename;
 		FileUtils.forceDelete(new File(zipFile));
