@@ -1,8 +1,6 @@
 # sr-api
-Micro-Web-Framework Challenge
+Upload files using Java Spark Framework.
 
-I used Java Spark framework to develop the API.
-
-- For Story 1: http://localhost:4567/attach
-- For Story 2.1:  http://localhost:4567/zip
-- For Story 2.2 : http://localhost:4567/thumbnails
+- http://localhost:4567/attach : Upload an image file and produce a url that display the image.
+- http://localhost:4567/zip : Upload a zip file that contains image files and produce a url for each file.
+- http://localhost:4567/thumbnails : Upload an image file and produce URLs that display 32px and 64px thumbnails. 
